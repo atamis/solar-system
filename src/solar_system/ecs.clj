@@ -1,6 +1,7 @@
 (ns solar-system.ecs
   (:require [brute.entity :as entity]
-            [brute.system :as system]))
+            [brute.system :as system]
+            [solar-system.util :as util]))
 
 (defprotocol Ireference? (reference? [this]))
 
@@ -121,6 +122,19 @@
                     current-sys      (fn [] @sys-ref)]
             (fun entity))))
       @sys-ref)))
+
+(defn mapping-system
+  "System mapping strictly over a single component. Function takes (fun component) or (fun component delta)"
+  [type fun]
+  (fn [system delta]
+    (let [adapted-fun (if (= 2 (util/arity-max fun))
+                        (fn [component] (fun component delta))
+                        fun)]
+      (reduce
+       (fn [system entity]
+         (entity/update-component system entity type adapted-fun))
+       system
+       (get-all-entities-with-component system type)))))
 
 (defn add-singleton-ref
   ([system fun] (add-singleton-ref system {} fun))

@@ -117,10 +117,26 @@
     [system]
     (simple-add-system system :self-destructor {} (fn [entity] (ecs/kill-entity))))
 
-  (t/testing "removing entities")
-  (let [[entity sys] (setup-entity-remover @sys)]
-    (t/is (some? ((:entity-component-types sys) entity)))
-    (def new-sys (ecs/process-tick sys 1))
-    (t/is (not (some? ((:entity-component-types new-sys)
+  (t/testing "removing entities"
+    (let [[entity sys] (setup-entity-remover @sys)]
+      (t/is (some? ((:entity-component-types sys) entity)))
+      (def new-sys (ecs/process-tick sys 1))
+      (t/is (not (some? ((:entity-component-types new-sys)
+                         entity))))))
 
-                       entity))))))
+  (t/testing "mapping systems"
+    (def entity (ecs/create-entity))
+    (def system (-> @sys
+                    (ecs/add-entity entity)
+                    (ecs/add-component entity {:component :tick :n 0 :m 0})
+                    (ecs/add-system (ecs/mapping-system :tick #(update %1 :n inc)))
+                    (ecs/add-system (ecs/mapping-system :tick (fn [component delta] (update component :m #(+ delta %1)))))))
+    (t/is (= 0 (:n (ecs/get-component system entity :tick))))
+    (t/is (= 0 (:m (ecs/get-component system entity :tick))))
+    ; Note delta = 2
+    (def system (ecs/process-tick system 2))
+    (t/is (= 1 (:n (ecs/get-component system entity :tick))))
+    (t/is (= 2 (:m (ecs/get-component system entity
+
+                                      :tick))))))
+
