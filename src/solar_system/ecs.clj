@@ -1,7 +1,6 @@
 (ns solar-system.ecs
   (:require [brute.entity :as entity]
-            [brute.system :as system]
-            [brute.entity :as e]))
+            [brute.system :as system]))
 
 (defprotocol Ireference? (reference? [this]))
 
@@ -10,15 +9,15 @@
 (extend-type clojure.lang.Ref Ireference? (reference? [this] true))
 (extend-type clojure.lang.Agent Ireference? (reference? [this] true))
 
-(defmethod e/get-component-type clojure.lang.PersistentArrayMap
+(defmethod entity/get-component-type clojure.lang.PersistentArrayMap
   [component]
   (:component component))
 
-(defmethod e/get-component-type clojure.lang.PersistentHashMap
+(defmethod entity/get-component-type clojure.lang.PersistentHashMap
   [component]
   (:component component))
 
-(def get-component-type e/get-component-type)
+(def get-component-type entity/get-component-type)
 
 (defn add-event-internal
   [system event]
@@ -109,16 +108,35 @@
   [type fun]
   (fn [system delta]
     (let [sys-ref (ref system)]
-      (doseq [entity (e/get-all-entities-with-component system type)]
+      (doseq [entity (entity/get-all-entities-with-component system type)]
         (let [local-entity entity
-              local-type type]
-          (binding [get-component (localize-get-component sys-ref local-entity)
-                    add-entity (localize-add-entity sys-ref)
-                    add-component (localize-add-component sys-ref local-entity)
-                    kill-entity (localize-kill-entity sys-ref local-entity)
+              local-type   type]
+          (binding [get-component    (localize-get-component sys-ref local-entity)
+                    add-entity       (localize-add-entity sys-ref)
+                    add-component    (localize-add-component sys-ref local-entity)
+                    kill-entity      (localize-kill-entity sys-ref local-entity)
                     remove-component (localize-remove-component sys-ref local-entity local-type)
-                    add-event (localize-add-event sys-ref)
-                    add-entity! (localize-add-entity! sys-ref)
-                    current-sys (fn [] @sys-ref)]
+                    add-event        (localize-add-event sys-ref)
+                    add-entity!      (localize-add-entity! sys-ref)
+                    current-sys      (fn [] @sys-ref)]
             (fun entity))))
       @sys-ref)))
+
+(defn add-singleton-ref
+  ([system fun] (add-singleton-ref system {} fun))
+  ([system data fun] (add-singleton-ref system (gensym) data fun))
+  ([system type data fun]
+   (let [entity    (create-entity)
+         component (assoc data :component type)
+         system    (-> system
+                       (add-entity entity)
+                       (add-component entity component)
+                       (add-iterating-system type fun))]
+     [system entity])))
+
+(defn add-singleton
+  ([system fun] (add-singleton system {} fun))
+  ([system data fun] (add-singleton system (gensym) data fun))
+  ([system type data fun]
+   (let [[system entity] (add-singleton-ref system type data fun)]
+     system)))

@@ -25,15 +25,7 @@
 
 (defn simple-add-system
   [system type data fun]
-  (let [entity (ecs/create-entity)
-        component (assoc data :component type)
-        system (-> system
-                   (ecs/add-entity entity)
-                   (ecs/add-component entity component)
-                   (ecs/add-iterating-system
-                    type
-                    fun))]
-    [entity system]))
+  (into [] (reverse (ecs/add-singleton-ref system type data fun))))
 
 (t/deftest iterating-system
   (defn setup-ticking-system
@@ -109,32 +101,26 @@
       (def dummy-entities (conj (ecs/drain-events new-sys) new-entity))
 
       (t/is (same-elements dummy-entities (ecs/get-all-entities-with-component new-sys :dummy)))))
-  
+
   (defn setup-component-remover
     [system]
     (simple-add-system system :self-remover {} (fn [entity]
-                                                 (ecs/remove-component entity :self-remover)
-                                                 ))
-    )
+                                                 (ecs/remove-component entity :self-remover))))
+
   (t/testing "removing components"
     (let [[entity sys] (setup-component-remover @sys)]
       (t/is (= [entity] (ecs/get-all-entities-with-component sys :self-remover)))
-      (clojure.pprint/pprint sys)
       (def new-sys (ecs/process-tick sys 1))
-      (clojure.pprint/pprint new-sys)
-      (t/is (= [] (ecs/get-all-entities-with-component new-sys :self-remover)))
-      )
-    )
+      (t/is (= [] (ecs/get-all-entities-with-component new-sys :self-remover)))))
 
   (defn setup-entity-remover
     [system]
-    (simple-add-system system :self-destructor {} (fn [entity] (ecs/kill-entity)))
-    )
+    (simple-add-system system :self-destructor {} (fn [entity] (ecs/kill-entity))))
 
   (t/testing "removing entities")
   (let [[entity sys] (setup-entity-remover @sys)]
     (t/is (some? ((:entity-component-types sys) entity)))
     (def new-sys (ecs/process-tick sys 1))
-    (t/is (not (some? ((:entity-component-types new-sys) entity))))
-    )
-  )
+    (t/is (not (some? ((:entity-component-types new-sys)
+
+                       entity))))))
