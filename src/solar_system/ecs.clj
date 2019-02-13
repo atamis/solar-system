@@ -35,25 +35,68 @@
 
 (defn ^:private remove-component-internal
   "Remove a component instance from the ES data structure and returns it"
-  [system entity type]
-  (let [system (transient system)
-        entity-components (:entity-components system)
-        entity-component-types (:entity-component-types system)]
-    (-> system
-        (assoc! :entity-components (assoc entity-components type (-> entity-components (get type) (dissoc entity))))
-        (assoc! :entity-component-types (assoc entity-component-types entity (-> entity-component-types (get entity) (disj type))))
-        persistent!)))
+  ([system entity type]
+   (let [system (transient system)
+         entity-components (:entity-components system)
+         entity-component-types (:entity-component-types system)]
+     (-> system
+         (assoc! :entity-components (assoc entity-components type (-> entity-components (get type) (dissoc entity))))
+         (assoc! :entity-component-types (assoc entity-component-types entity (-> entity-component-types (get entity) (disj type))))
+         persistent!))))
 
 (declare iterating-system)
 
-(def ^:dynamic get-component entity/get-component)
-(def ^:dynamic add-entity entity/add-entity)
-(def ^:dynamic add-component entity/add-component)
-(def ^:dynamic kill-entity entity/kill-entity)
-(def ^:dynamic remove-component remove-component-internal)
-(def ^:dynamic add-event add-event-internal)
-(def ^:dynamic add-entity! nil)
-(def ^:dynamic current-sys nil)
+(def ^:dynamic current-sys-ref nil)
+(def ^:dynamic current-entity nil)
+(def ^:dynamic current-type nil)
+
+(defn get-component
+  ([type]
+   (entity/get-component @current-sys-ref current-entity type))
+  ([entity type]
+   (entity/get-component @current-sys-ref entity type))
+  ([system entity type]
+   (entity/get-component system entity type)))
+
+(defn add-entity
+  ([] (dosync (alter current-sys-ref #(entity/add-entity %1 (entity/create-entity)))))
+  ([entity] (dosync (alter current-sys-ref #(entity/add-entity %1 entity))))
+  ([system entity] (entity/add-entity system entity)))
+
+(defn add-component
+  ([component] (dosync (alter current-sys-ref #(entity/add-component %1 current-entity component))))
+  ([entity component] (dosync (alter current-sys-ref #(entity/add-component %1 entity component))))
+  ([system entity component] (entity/add-component system entity component)))
+
+(defn kill-entity
+  ([] (dosync (alter current-sys-ref #(entity/kill-entity %1 current-entity))))
+  ([entity] (alter current-sys-ref #(entity/kill-entity %1 entity)))
+  ([system entity] (entity/kill-entity system entity)))
+
+(defn remove-component
+  ([] (dosync (alter current-sys-ref #(remove-component %1 current-entity current-type))))
+  ([type] (dosync (alter current-sys-ref #(remove-component %1 current-entity type))))
+  ([entity type] (dosync (alter current-sys-ref #(remove-component %1 entity type))))
+  ([system entity type]
+   (let [system (transient system)
+         entity-components (:entity-components system)
+         entity-component-types (:entity-component-types system)]
+     (-> system
+         (assoc! :entity-components (assoc entity-components type (-> entity-components (get type) (dissoc entity))))
+         (assoc! :entity-component-types (assoc entity-component-types entity (-> entity-component-types (get entity) (disj type))))
+         persistent!))))
+
+(defn add-event
+  ([event] (add-event current-sys-ref event))
+  ([system event]
+   (add-event-internal system event)))
+
+(defn add-entity!
+  []
+  (let [entity (entity/create-entity)]
+    (dosync (alter current-sys-ref #(entity/add-entity %1 entity)))
+    entity))
+
 (def create-entity entity/create-entity)
 (def add-system system/add-system-fn)
 (def get-all-entities-with-component entity/get-all-entities-with-component)
@@ -62,49 +105,6 @@
   (add-system system (iterating-system type fun)))
 (def process-tick system/process-one-game-tick)
 
-(defn ^:private localize-get-component
-  [sys-ref entity]
-  (fn [component]
-    (entity/get-component @sys-ref entity component)))
-
-(defn ^:private localize-add-entity
-  [sys-ref]
-  (fn
-    ([] (dosync (alter sys-ref #(entity/add-entity %1 (entity/create-entity)))))
-    ([entity] (dosync (alter sys-ref #(entity/add-entity %1 entity))))))
-
-(defn ^:private localize-add-component
-  [sys-ref local-entity]
-  (fn
-    ([component] (dosync (alter sys-ref #(entity/add-component %1 local-entity component))))
-    ([entity component] (dosync (alter sys-ref #(entity/add-component %1 entity component))))))
-
-(defn ^:private localize-kill-entity
-  [sys-ref local-entity]
-  (fn
-    ([] (dosync (alter sys-ref #(entity/kill-entity %1 local-entity))))
-    ([entity] (alter sys-ref #(entity/kill-entity %1 entity)))))
-
-(defn ^:private localize-remove-component
-  [sys-ref local-entity local-type]
-  (fn
-    ([] (dosync (alter sys-ref #(remove-component-internal %1 local-entity local-type))))
-    ([type] (dosync  (alter sys-ref #(remove-component-internal %1 local-entity type))))
-    ([entity type] (dosync (alter sys-ref #(remove-component-internal %1 entity type))))))
-
-(defn ^:private localize-add-event
-  [sys-ref]
-  (fn
-    ([event] (add-event-internal sys-ref event))
-    ([system event] (add-event-internal system event))))
-
-(defn ^:private localize-add-entity!
-  [sys-ref]
-  (fn
-    [] (let [entity (entity/create-entity)]
-         (dosync (alter sys-ref #(entity/add-entity %1 entity)))
-         entity)))
-
 (defn iterating-system
   [type fun]
   (fn [system delta]
@@ -112,14 +112,9 @@
       (doseq [entity (entity/get-all-entities-with-component system type)]
         (let [local-entity entity
               local-type   type]
-          (binding [get-component    (localize-get-component sys-ref local-entity)
-                    add-entity       (localize-add-entity sys-ref)
-                    add-component    (localize-add-component sys-ref local-entity)
-                    kill-entity      (localize-kill-entity sys-ref local-entity)
-                    remove-component (localize-remove-component sys-ref local-entity local-type)
-                    add-event        (localize-add-event sys-ref)
-                    add-entity!      (localize-add-entity! sys-ref)
-                    current-sys      (fn [] @sys-ref)]
+          (binding [current-sys-ref sys-ref
+                    current-entity entity
+                    current-type type]
             (fun entity))))
       @sys-ref)))
 
