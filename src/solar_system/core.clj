@@ -1,7 +1,5 @@
 (ns solar-system.core
-  (:require [brute.entity :as e]
-            [brute.system :as s]
-            [taoensso.timbre :as timbre]
+  (:require [taoensso.timbre :as timbre]
             [solar-system.ecs :as ecs])
   (:gen-class))
 
@@ -21,8 +19,7 @@
 (defn add-systems
   [system]
   (-> system
-      (ecs/add-system tick-system)
-      ))
+      (ecs/add-system tick-system)))
 
 (defn tick!
   []
@@ -33,16 +30,16 @@
 
 (defn tick-loop
   [fps]
-  (def frame-time (/ 1000 fps))
-  (loop []
-    (def start (current-millis))
-    (tick!)
-    (def end (current-millis))
-    (def length (- end start))
-    (def sleeptime (- frame-time length))
-    (infof "Tick loop took %dms, sleeping %dms" (long length) (long sleeptime))
-    (Thread/sleep sleeptime)
-    (recur)))
+  (let [frame-time (/ 1000 fps)]
+    (loop []
+      (let [start (current-millis)
+            _ (tick!)
+            end (current-millis)
+            length (- end start)
+            sleeptime (- frame-time length)]
+        (infof "Tick loop took %dms, sleeping %dms" (long length) (long sleeptime))
+        (Thread/sleep sleeptime)
+        (recur)))))
 
 (defn -main
   "I don't do a whole lot ... yet."
