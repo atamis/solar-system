@@ -127,12 +127,10 @@
   "System mapping strictly over a single component. Function takes (fun component) or (fun component delta)"
   [type fun]
   (fn [system delta]
-    (let [adapted-fun (if (= 2 (util/arity-max fun))
-                        (fn [component] (fun component delta))
-                        fun)]
+    (let [adapted-fun (util/make-flexible-fn fun)]
       (reduce
        (fn [system entity]
-         (entity/update-component system entity type adapted-fun))
+         (entity/update-component system entity type adapted-fun delta))
        system
        (get-all-entities-with-component system type)))))
 

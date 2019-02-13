@@ -130,7 +130,8 @@
                     (ecs/add-entity entity)
                     (ecs/add-component entity {:component :tick :n 0 :m 0})
                     (ecs/add-system (ecs/mapping-system :tick #(update %1 :n inc)))
-                    (ecs/add-system (ecs/mapping-system :tick (fn [component delta] (update component :m #(+ delta %1)))))))
+                    (ecs/add-system (ecs/mapping-system :tick (fn [component delta] (update component :m #(+ delta %1)))))
+                    ))
     (t/is (= 0 (:n (ecs/get-component system entity :tick))))
     (t/is (= 0 (:m (ecs/get-component system entity :tick))))
     ; Note delta = 2

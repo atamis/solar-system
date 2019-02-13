@@ -25,3 +25,11 @@
        class
        .getDeclaredMethods
        (map #(alength (.getParameterTypes %1)))))
+
+(defn apply-flex-arity
+  [fun args]
+  (apply fun (take (arity-max fun) args)))
+
+(defn make-flexible-fn
+  [fun]
+  (fn [& args] (apply-flex-arity fun args)))
