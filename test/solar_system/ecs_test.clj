@@ -1,12 +1,13 @@
 (ns solar-system.ecs-test
   (:require [solar-system.ecs :as ecs]
-            [clojure.test :as t]))
+            [clojure.test :as t]
+            [solar-system.event :as event]))
 
 (def ^:dynamic sys nil)
 
 (defn setup-sys
   [f]
-  (binding [sys (ref (ecs/create-system))]
+  (binding [sys (ref (event/add-event-system (ecs/create-system)))]
     (f)))
 
 (defn same-elements
@@ -14,14 +15,6 @@
   (= #{} (apply clojure.set/difference (map #(into #{} %1) seqs))))
 
 (t/use-fixtures :each setup-sys)
-
-(t/deftest event-system
-  (t/testing "the event system"
-    (t/is (= [] (ecs/drain-events sys)))
-    (t/is (= [] (ecs/drain-events @sys)))
-    (ecs/add-event sys :event1)
-    (t/is (= [:event1] (ecs/drain-events sys)))
-    (t/is (= [] (ecs/drain-events sys)))))
 
 (defn simple-add-system
   [system type data fun]
@@ -54,7 +47,7 @@
                          (let [component (ecs/get-component :tick-event)
                                old-n (:n component)
                                new-component (update component :n inc)]
-                           (ecs/add-event old-n)
+                           (event/add-event old-n)
                            (ecs/add-component new-component)))))
 
   (t/testing "adding events"
@@ -63,7 +56,7 @@
       (def new-sys (ecs/process-tick sys 1))
       (t/is (= [0] @(:events sys)))
       (def new-sys (ecs/process-tick new-sys 1))
-      (t/is (= [0 1] (ecs/drain-events sys)))))
+      (t/is (= [0 1] (event/drain-events sys)))))
 
   (defn setup-entity-spawner
     [system]
@@ -73,7 +66,7 @@
                                old-n (:n component)
                                new-component (update component :n inc)
                                new-entity (ecs/add-entity!)]
-                           (ecs/add-event new-entity)
+                           (event/add-event new-entity)
                            (ecs/add-component new-entity {:component :dummy})
                            (ecs/add-component new-component)))))
 
@@ -88,7 +81,7 @@
       (t/is (= {:component :entity-spawner :n 1} (ecs/get-component new-sys entity :entity-spawner)))
 
       ; Check the first spawned entity
-      (def events (ecs/drain-events new-sys))
+      (def events (event/drain-events new-sys))
       (def new-entity (events 0))
 
       ; And that it has the component
@@ -98,7 +91,7 @@
       (def new-sys (ecs/process-tick new-sys 1))
       (def new-sys (ecs/process-tick new-sys 1))
       (def new-sys (ecs/process-tick new-sys 1))
-      (def dummy-entities (conj (ecs/drain-events new-sys) new-entity))
+      (def dummy-entities (conj (event/drain-events new-sys) new-entity))
 
       (t/is (same-elements dummy-entities (ecs/get-all-entities-with-component new-sys :dummy)))))
 

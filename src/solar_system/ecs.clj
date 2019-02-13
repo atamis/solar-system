@@ -3,13 +3,6 @@
             [brute.system :as system]
             [solar-system.util :as util]))
 
-(defprotocol Ireference? (reference? [this]))
-
-(extend-type java.lang.Object Ireference? (reference? [this] false))
-(extend-type nil Ireference? (reference? [this] false))
-(extend-type clojure.lang.Ref Ireference? (reference? [this] true))
-(extend-type clojure.lang.Agent Ireference? (reference? [this] true))
-
 (defmethod entity/get-component-type clojure.lang.PersistentArrayMap
   [component]
   (:component component))
@@ -20,18 +13,11 @@
 
 (def get-component-type entity/get-component-type)
 
-(defn add-event-internal
-  [system event]
-  (swap! (:events (if (reference? system) @system system)) conj event))
 
-(defn drain-events
-  [system]
-  (let [[old-events _] (reset-vals! (:events (if (reference? system) @system system)) [])]
-    old-events))
 
 (defn create-system
   []
-  (assoc (entity/create-system) :events (atom [])))
+  (entity/create-system))
 
 (defn ^:private remove-component-internal
   "Remove a component instance from the ES data structure and returns it"
@@ -86,10 +72,7 @@
          (assoc! :entity-component-types (assoc entity-component-types entity (-> entity-component-types (get entity) (disj type))))
          persistent!))))
 
-(defn add-event
-  ([event] (add-event current-sys-ref event))
-  ([system event]
-   (add-event-internal system event)))
+
 
 (defn add-entity!
   []
